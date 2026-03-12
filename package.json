@@ -7,8 +7,10 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "asyar-api": "link:../../asyar/asyar-api",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "asyar-api": ">=1.0.0"
   }
 }
