@@ -30,21 +30,93 @@ var ExtensionBundle = (() => {
   ));
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // ../../asyar/asyar-api/dist/ExtensionContext.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/RemoteBridge.js
+  var require_RemoteBridge = __commonJS({
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/RemoteBridge.js"(exports) {
+      "use strict";
+      Object.defineProperty(exports, "__esModule", { value: true });
+      exports.RemoteBridge = exports.BridgeMessageType = void 0;
+      var BridgeMessageType;
+      (function(BridgeMessageType2) {
+        BridgeMessageType2["LOG"] = "LOG";
+        BridgeMessageType2["NOTIFY"] = "NOTIFY";
+        BridgeMessageType2["SERVICE_CALL"] = "SERVICE_CALL";
+        BridgeMessageType2["SERVICE_RESPONSE"] = "SERVICE_RESPONSE";
+        BridgeMessageType2["EVENT"] = "EVENT";
+        BridgeMessageType2["INITIALIZE"] = "INITIALIZE";
+      })(BridgeMessageType || (exports.BridgeMessageType = BridgeMessageType = {}));
+      var RemoteBridge = class {
+        static init(handler) {
+          window.addEventListener("message", (event) => {
+            const message = event.data;
+            if (!message || !message.type)
+              return;
+            if (message.type === BridgeMessageType.SERVICE_RESPONSE && message.callId) {
+              const pending = this.pendingCalls.get(message.callId);
+              if (pending) {
+                if (message.error)
+                  pending.reject(new Error(message.error));
+                else
+                  pending.resolve(message.payload);
+                this.pendingCalls.delete(message.callId);
+              }
+            } else {
+              handler(message);
+            }
+          });
+        }
+        static send(message, target = window.parent) {
+          target.postMessage(message, "*");
+        }
+        static callRemote(type, payload) {
+          const callId = Math.random().toString(36).substring(2, 9);
+          return new Promise((resolve, reject) => {
+            this.pendingCalls.set(callId, { resolve, reject });
+            this.send({ type, payload, callId });
+          });
+        }
+        static respond(callId, payload, error) {
+          this.send({ type: BridgeMessageType.SERVICE_RESPONSE, payload, callId, error });
+        }
+      };
+      exports.RemoteBridge = RemoteBridge;
+      RemoteBridge.handlers = /* @__PURE__ */ new Map();
+      RemoteBridge.pendingCalls = /* @__PURE__ */ new Map();
+    }
+  });
+
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/ExtensionContext.js
   var require_ExtensionContext = __commonJS({
-    "../../asyar/asyar-api/dist/ExtensionContext.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/ExtensionContext.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
       exports.ExtensionContext = void 0;
+      var RemoteBridge_1 = require_RemoteBridge();
       var ExtensionContext2 = class {
-        constructor(serviceRegistry = {}, componentRegistry = {}) {
+        constructor(serviceRegistry = {}, componentRegistry = {}, isRemote = false) {
           this.extensionId = "";
+          this.isRemote = false;
           this.serviceRegistry = serviceRegistry;
           this.componentRegistry = componentRegistry;
+          this.isRemote = isRemote;
         }
         // Method to get a service by its interface name
         getService(serviceType) {
-          console.log("Getting service:", serviceType);
+          if (this.isRemote) {
+            return new Proxy({}, {
+              get: (target, prop) => {
+                if (typeof prop === "string") {
+                  return (...args) => {
+                    return RemoteBridge_1.RemoteBridge.callRemote(RemoteBridge_1.BridgeMessageType.SERVICE_CALL, {
+                      service: serviceType,
+                      method: prop,
+                      args
+                    });
+                  };
+                }
+              }
+            });
+          }
           const service = this.serviceRegistry[serviceType];
           if (!service) {
             throw new Error(`Service "${serviceType}" not registered`);
@@ -61,6 +133,13 @@ var ExtensionBundle = (() => {
           this.extensionId = id;
         }
         registerAction(action) {
+          if (this.isRemote) {
+            RemoteBridge_1.RemoteBridge.send({
+              type: RemoteBridge_1.BridgeMessageType.SERVICE_CALL,
+              payload: { service: "ExtensionBridge", method: "registerAction", args: [this.extensionId, action] }
+            });
+            return;
+          }
           const bridge = ExtensionBridge_1.ExtensionBridge.getInstance();
           if (this.extensionId) {
             bridge.registerAction(this.extensionId, action);
@@ -69,10 +148,21 @@ var ExtensionBundle = (() => {
           }
         }
         unregisterAction(actionId) {
+          if (this.isRemote) {
+            RemoteBridge_1.RemoteBridge.send({
+              type: RemoteBridge_1.BridgeMessageType.SERVICE_CALL,
+              payload: { service: "ExtensionBridge", method: "unregisterAction", args: [`${this.extensionId}:${actionId}`] }
+            });
+            return;
+          }
           const bridge = ExtensionBridge_1.ExtensionBridge.getInstance();
           bridge.unregisterAction(`${this.extensionId}:${actionId}`);
         }
         registerCommand(commandId, handler) {
+          if (this.isRemote) {
+            console.warn("Registering command handlers from remote views is not fully supported yet via bridge.");
+            return;
+          }
           const bridge = ExtensionBridge_1.ExtensionBridge.getInstance();
           if (this.extensionId) {
             bridge.registerCommand(`${this.extensionId}.${commandId}`, handler, this.extensionId);
@@ -81,6 +171,8 @@ var ExtensionBundle = (() => {
           }
         }
         unregisterCommand(commandId) {
+          if (this.isRemote)
+            return;
           const bridge = ExtensionBridge_1.ExtensionBridge.getInstance();
           bridge.unregisterCommand(`${this.extensionId}.${commandId}`);
         }
@@ -90,9 +182,9 @@ var ExtensionBundle = (() => {
     }
   });
 
-  // ../../asyar/asyar-api/dist/ExtensionBridge.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/ExtensionBridge.js
   var require_ExtensionBridge = __commonJS({
-    "../../asyar/asyar-api/dist/ExtensionBridge.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/ExtensionBridge.js"(exports) {
       "use strict";
       var __awaiter = exports && exports.__awaiter || function(thisArg, _arguments, P, generator) {
         function adopt(value) {
@@ -280,9 +372,9 @@ var ExtensionBundle = (() => {
     }
   });
 
-  // ../../asyar/asyar-api/dist/components/index.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/components/index.js
   var require_components = __commonJS({
-    "../../asyar/asyar-api/dist/components/index.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/components/index.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
       exports.ConfirmDialog = exports.ShortcutRecorder = exports.SplitView = exports.Toggle = exports.Card = exports.Input = exports.Button = void 0;
@@ -308,9 +400,9 @@ var ExtensionBundle = (() => {
     }
   });
 
-  // ../../asyar/asyar-api/dist/ui/ViewBuilder.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/ui/ViewBuilder.js
   var require_ViewBuilder = __commonJS({
-    "../../asyar/asyar-api/dist/ui/ViewBuilder.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/ui/ViewBuilder.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
       exports.ViewBuilder = void 0;
@@ -388,25 +480,25 @@ var ExtensionBundle = (() => {
     }
   });
 
-  // ../../asyar/asyar-api/dist/types/NotificationType.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/NotificationType.js
   var require_NotificationType = __commonJS({
-    "../../asyar/asyar-api/dist/types/NotificationType.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/NotificationType.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
     }
   });
 
-  // ../../asyar/asyar-api/dist/types/ExtensionType.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/ExtensionType.js
   var require_ExtensionType = __commonJS({
-    "../../asyar/asyar-api/dist/types/ExtensionType.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/ExtensionType.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
     }
   });
 
-  // ../../asyar/asyar-api/dist/types/ClipboardType.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/ClipboardType.js
   var require_ClipboardType = __commonJS({
-    "../../asyar/asyar-api/dist/types/ClipboardType.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/ClipboardType.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
       exports.ClipboardItemType = void 0;
@@ -419,9 +511,9 @@ var ExtensionBundle = (() => {
     }
   });
 
-  // ../../asyar/asyar-api/dist/types/ActionType.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/ActionType.js
   var require_ActionType = __commonJS({
-    "../../asyar/asyar-api/dist/types/ActionType.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/ActionType.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
       exports.ActionContext = void 0;
@@ -437,17 +529,17 @@ var ExtensionBundle = (() => {
     }
   });
 
-  // ../../asyar/asyar-api/dist/types/CommandType.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/CommandType.js
   var require_CommandType = __commonJS({
-    "../../asyar/asyar-api/dist/types/CommandType.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/CommandType.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
     }
   });
 
-  // ../../asyar/asyar-api/dist/types/index.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/index.js
   var require_types = __commonJS({
-    "../../asyar/asyar-api/dist/types/index.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/types/index.js"(exports) {
       "use strict";
       var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
         if (k2 === void 0) k2 = k;
@@ -474,9 +566,9 @@ var ExtensionBundle = (() => {
     }
   });
 
-  // ../../asyar/asyar-api/dist/index.js
+  // node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/index.js
   var require_dist = __commonJS({
-    "../../asyar/asyar-api/dist/index.js"(exports) {
+    "node_modules/.pnpm/asyar-api@file+..+..+asyar+asyar-api/node_modules/asyar-api/dist/index.js"(exports) {
       "use strict";
       var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
         if (k2 === void 0) k2 = k;
@@ -495,7 +587,7 @@ var ExtensionBundle = (() => {
         for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports2, p)) __createBinding(exports2, m, p);
       };
       Object.defineProperty(exports, "__esModule", { value: true });
-      exports.ActionContext = exports.ClipboardItemType = exports.ViewBuilder = exports.ExtensionContext = exports.ExtensionBridge = void 0;
+      exports.ActionContext = exports.ClipboardItemType = exports.ViewBuilder = exports.BridgeMessageType = exports.RemoteBridge = exports.ExtensionContext = exports.ExtensionBridge = void 0;
       var ExtensionBridge_1 = require_ExtensionBridge();
       Object.defineProperty(exports, "ExtensionBridge", { enumerable: true, get: function() {
         return ExtensionBridge_1.ExtensionBridge;
@@ -503,6 +595,13 @@ var ExtensionBundle = (() => {
       var ExtensionContext_1 = require_ExtensionContext();
       Object.defineProperty(exports, "ExtensionContext", { enumerable: true, get: function() {
         return ExtensionContext_1.ExtensionContext;
+      } });
+      var RemoteBridge_1 = require_RemoteBridge();
+      Object.defineProperty(exports, "RemoteBridge", { enumerable: true, get: function() {
+        return RemoteBridge_1.RemoteBridge;
+      } });
+      Object.defineProperty(exports, "BridgeMessageType", { enumerable: true, get: function() {
+        return RemoteBridge_1.BridgeMessageType;
       } });
       __exportStar(require_components(), exports);
       var ViewBuilder_1 = require_ViewBuilder();
@@ -526,7 +625,7 @@ var ExtensionBundle = (() => {
   __export(index_exports, {
     default: () => index_default
   });
-  var import_asyar_api = __toESM(require_dist());
+  var import_asyar_api = __toESM(require_dist(), 1);
   var greetingExtension = {
     async initialize(context) {
       var _a;

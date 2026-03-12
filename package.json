@@ -1,16 +1,23 @@
 {
   "name": "asyar-greeting-extension",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "scripts": {
-    "build": "tsup index.ts --format iife --global-name ExtensionBundle --no-splitting --clean --external asyar-api"
+    "build": "tsup index.ts --format iife --global-name ExtensionBundle --no-splitting --clean --external asyar-api",
+    "build:views": "vite build --config vite.views.config.ts"
   },
-  "dependencies": {},
+  "dependencies": {
+    "svelte": "^5.0.0"
+  },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "asyar-api": "file:../../asyar/asyar-api",
     "tsup": "^8.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
   },
   "peerDependencies": {
-    "asyar-api": ">=1.0.0"
+    "asyar-api": "*"
   }
 }
