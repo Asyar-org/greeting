@@ -1,0 +1,25 @@
+{
+  "id": "greeting-extension",
+  "name": "Greeting Extension",
+  "version": "1.0.0",
+  "description": "A simple extension that greets the user",
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "icon": "👋",
+  "commands": [
+    {
+      "id": "greeting-extension.greet",
+      "name": "Greet Me",
+      "description": "Display a customizable greeting message",
+      "mode": "view",
+      "keywords": ["hello", "greeting", "welcome", "hi"],
+      "icon": "👋"
+    }
+  ],
+  "type": "view",
+  "defaultView": "GreetingView",
+  "main": "dist/index.js",
+  "permissions": ["ui"]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "asyar-greeting-extension",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsup index.ts --format iife --global-name ExtensionBundle --no-splitting --clean --external asyar-api"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "asyar-api": "link:../../asyar/asyar-api",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}
