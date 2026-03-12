@@ -1,9 +1,13 @@
 import { mount } from 'svelte';
 import GreetingView from './GreetingView.svelte';
 
-export default function(target, context) {
+function mountView(target: HTMLElement, context: any) {
   return mount(GreetingView, {
     target,
-    props: { context }
+    props: {
+      context
+    }
   });
 }
+
+module.exports = mountView;
